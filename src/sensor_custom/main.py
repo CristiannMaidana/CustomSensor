@@ -10,33 +10,40 @@ if __name__ == '__main__':
     # Cargo la base de la url
     api = ApiClient('http://127.0.0.1:8000/')
 
-    # elijo el sensor
-    sensor_data = api.get_sensor(2)
-
-    # Valido los datos json del sensor a python
-    dto = SensorDTO.model_validate(sensor_data)  # validación + parseo
-
-    # Sensor ya en python
-    sensor = dto.to_domain()  # dominio
+    # elijo el sensor y valido datos json y convierto en python
+    sensor1 = SensorDTO.model_validate(api.get_sensor(1)).to_domain()
+    sensor2 = SensorDTO.model_validate(api.get_sensor(2)).to_domain()
 
     # genero la carga de datos del sensor
-    ms = MedicionSensor(volumen_medido=0, sensor=sensor)
+    ms1 = MedicionSensor(volumen_medido=0, sensor=sensor1)
+    ms2 = MedicionSensor(volumen_medido=0, sensor=sensor2)
 
-    sem1 = threading.Semaphore(1)
-    sem2 = threading.Semaphore(0)
+    # Par de semáforos por sensor (turnos)
+    sem1_1 = threading.Semaphore(1)   # arranca el sensor 1
+    sem2_1 = threading.Semaphore(0)
+
+    sem1_2 = threading.Semaphore(0)   # el sensor 2 espera su turno
+    sem2_2 = threading.Semaphore(0)
+
 
     # genero el runner
-    run = Runner(medicion_sensor=ms, semaforo=(sem1, sem2))  # semaforo 1 + semaforo 2
+    run1 = Runner(medicion_sensor=ms1, semaforo=(sem1_1, sem2_1))
+    run2 = Runner(medicion_sensor=ms2, semaforo=(sem1_2, sem2_2))
 
-    hilo_runner = threading.Thread(target=run.iniciar, daemon=True)
-    hilo_runner.start()
+    #Mando el hilo de runner
+    threading.Thread(target=run1.iniciar, daemon=True).start()
+    threading.Thread(target=run2.iniciar, daemon=True).start()
 
-    while ms.volumen_medido < 1:
-        # se consume semaforo 2
-        sem2.acquire()
+    while ms1.volumen_medido < 1 or ms2.volumen_medido < 1:
 
-        print(ms.__dict__)
-        api.post_medicion_sensor(to_json(ms))
+        if ms1.volumen_medido < 1:
+            sem2_1.acquire()
+            print(ms1.__dict__)
+            api.post_medicion_sensor(to_json(ms1))
+            (sem1_2 if ms2.volumen_medido < 1 else sem1_1).release()
 
-        # activa el semaforo 1
-        sem1.release()
+        if ms2.volumen_medido < 1:
+            sem2_2.acquire()
+            print(ms2.__dict__)
+            api.post_medicion_sensor(to_json(ms2))
+            (sem1_1 if ms1.volumen_medido < 1 else sem1_2).release()
