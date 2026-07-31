@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from src.sensor_custom.domain.medicion_sensor import MedicionSensor
@@ -8,15 +9,17 @@ class MedicionSensorDTO(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     #Propiedades para cargar en el backend
-    sensor_id: int
-    contenedor_id: int
+    fecha_hora_medicion: datetime
+    id_sensor: int
+    id_contenedor: int
     volumen_medido: Optional[float] = None
 
     @classmethod
     def from_domain(cls, ms: MedicionSensor) -> "MedicionSensorDTO":
         return cls(
-            sensor_id=ms.id_sensor,
-            contenedor_id=ms.id_contenedor,
+            fecha_hora_medicion=datetime.now().astimezone(),
+            id_sensor=ms.id_sensor,
+            id_contenedor=ms.id_contenedor,
             volumen_medido=ms.volumen_medido,
         )
 
